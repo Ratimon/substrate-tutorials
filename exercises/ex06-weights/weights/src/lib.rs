@@ -1,140 +1,154 @@
-#![cfg_attr(not(feature = "std"), no_std)]
+// #![cfg_attr(not(feature = "std"), no_std)]
 
-pub use pallet::*;
+// pub use pallet::*;
 
-use sp_io::hashing::blake2_256;
+// use sp_io::hashing::blake2_256;
 
-#[cfg(test)]
-mod mock;
+// #[cfg(test)]
+// mod mock;
 
-#[cfg(test)]
-mod tests;
+// #[cfg(test)]
+// mod tests;
 
-// uncomment the following lines to include the benchmarking.rs file in the module tree, if the
-// runtime-benchmarks feature is activated
-//
+// // uncomment the following lines to include the benchmarking.rs file in the module tree, if the
+// // runtime-benchmarks feature is activated
+// //
 // #[cfg(feature = "runtime-benchmarks")]
 // mod benchmarking;
 
-use sp_std::vec::Vec;
+// use frame_support::weights::Weight;
+// pub mod weights;
+// pub trait WeightInfo {
+//     fn duplicate_and_store(s: u32) -> Weight;
+//     fn store_maybe_hashed_true() -> Weight;
+//     fn store_maybe_hashed_false() -> Weight;
+// }
 
-#[frame_support::pallet]
-pub mod pallet {
-	use super::*;
-	use frame_support::pallet_prelude::*;
-	use frame_system::pallet_prelude::*;
+// use sp_std::vec::Vec;
 
-	#[pallet::config]
-	pub trait Config: frame_system::Config {
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
-		type WeightInfo;
-	}
+// #[frame_support::pallet]
+// pub mod pallet {
+//     use super::*;
+//     use frame_support::pallet_prelude::*;
+//     use frame_system::pallet_prelude::*;
 
-	#[pallet::pallet]
-	#[pallet::generate_store(pub(super) trait Store)]
-	pub struct Pallet<T>(_);
+//     #[pallet::config]
+//     pub trait Config: frame_system::Config {
+//         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+//         type WeightInfo: WeightInfo;
+//     }
 
-	#[pallet::storage]
-	#[pallet::getter(fn acc)]
-	pub type Acc<T: Config> = StorageValue<_, T::AccountId>;
+//     #[pallet::pallet]
+//     #[pallet::generate_store(pub(super) trait Store)]
+//     pub struct Pallet<T>(_);
 
-	#[pallet::storage]
-	#[pallet::unbounded]
-	pub type VecDup<T: Config> = StorageValue<_, Vec<u32>>;
+//     #[pallet::storage]
+//     #[pallet::getter(fn acc)]
+//     pub type Acc<T: Config> = StorageValue<_, T::AccountId>;
 
-	#[pallet::storage]
-	#[pallet::unbounded]
-	pub type Data<T: Config> = StorageValue<_, Vec<u8>>;
+//     #[pallet::storage]
+//     #[pallet::unbounded]
+//     pub type VecDup<T: Config> = StorageValue<_, Vec<u32>>;
 
-	#[pallet::event]
-	#[pallet::generate_deposit(pub(super) fn deposit_event)]
-	pub enum Event<T: Config> {
-		IsRoot(T::AccountId),
-		SomethingStored(u32, T::AccountId),
-	}
+//     #[pallet::storage]
+//     #[pallet::unbounded]
+//     pub type Data<T: Config> = StorageValue<_, Vec<u8>>;
 
-	#[pallet::error]
-	pub enum Error<T> {
-		Invalid,
-		StorageOverflow,
-	}
+//     #[pallet::event]
+//     #[pallet::generate_deposit(pub(super) fn deposit_event)]
+//     pub enum Event<T: Config> {
+//         IsRoot(T::AccountId),
+//         SomethingStored(u32, T::AccountId),
+//     }
 
-	#[pallet::call]
-	impl<T: Config> Pallet<T> {
-		/////////////////////// Part 1 - arbitrary weights ///////////////////////
-		//TODO give this exctrinsic an arbitrary weight !
-		#[pallet::weight(0)]
-		pub fn verify_address(origin: OriginFor<T>) -> DispatchResult {
-			let who = ensure_signed(origin.clone())?;
-			ensure_root(origin)?;
+//     #[pallet::error]
+//     pub enum Error<T> {
+//         Invalid,
+//         StorageOverflow,
+//     }
 
-			// we do a read, this should be seen in the weight
-			let address = Self::acc();
+//     #[pallet::call]
+//     impl<T: Config> Pallet<T> {
+//         /////////////////////// Part 1 - arbitrary weights ///////////////////////
+//         //TODO give this exctrinsic an arbitrary weight !
+//         #[pallet::weight(T::DbWeight::get().reads(1) + 10_000)]
+//         pub fn verify_address(origin: OriginFor<T>) -> DispatchResult {
+//             let who = ensure_signed(origin.clone())?;
+//             ensure_root(origin)?;
 
-			if address == Some(who.clone()) {
-				Self::deposit_event(Event::IsRoot(who));
-			} else {
-				return Err(Error::<T>::Invalid.into())
-			}
+//             // we do a read, this should be seen in the weight
+//             let address = Self::acc();
 
-			Ok(())
-		}
+//             if address == Some(who.clone()) {
+//                 Self::deposit_event(Event::IsRoot(who));
+//             } else {
+//                 return Err(Error::<T>::Invalid.into());
+//             }
 
-		/////////////////////// Part 2 - benchmarks ///////////////////////
-		//TODO write a benchmark for this extrinsic in benchmarking.rs
-		#[pallet::weight(0)]
-		pub fn duplicate_and_store(origin: OriginFor<T>, elem: u32, count: u32) -> DispatchResult {
-			ensure_signed(origin)?;
+//             Ok(())
+//         }
 
-			let mut vec = Vec::new();
-			for _ in 0..count {
-				vec.push(elem);
-			}
+//         /////////////////////// Part 2 - benchmarks ///////////////////////
+//         //TODO write a benchmark for this extrinsic in benchmarking.rs
+//         #[pallet::weight(T::WeightInfo::duplicate_and_store(*count))]
+//         pub fn duplicate_and_store(origin: OriginFor<T>, elem: u32, count: u32) -> DispatchResult {
+//             ensure_signed(origin)?;
 
-			VecDup::<T>::put(vec);
-			Ok(())
-		}
+//             let mut vec = Vec::new();
+//             for _ in 0..count {
+//                 vec.push(elem);
+//             }
 
-		/////////////////////// Part 3.A - conditional arbitrary weight ///////////////////////
-		//TODO give this extrinsic a weight of 100_000 if `hash` is true, or 10_000 otherwise
-		#[pallet::weight(0)]
-		pub fn store_maybe_hashed(
-			origin: OriginFor<T>,
-			data: Vec<u8>,
-			hash: bool,
-		) -> DispatchResult {
-			ensure_signed(origin)?;
+//             VecDup::<T>::put(vec);
+//             Ok(())
+//         }
 
-			if hash {
-				let hash = blake2_256(&data);
-				Data::<T>::put(hash.as_ref().to_vec());
-			} else {
-				Data::<T>::put(data);
-			}
+//         /////////////////////// Part 3.A - conditional arbitrary weight ///////////////////////
+//         //TODO give this extrinsic a weight of 100_000 if `hash` is true, or 10_000 otherwise
+//         #[pallet::weight(if *hash {100_000} else {10_000})]
+//         pub fn store_maybe_hashed(
+//             origin: OriginFor<T>,
+//             data: Vec<u8>,
+//             hash: bool,
+//         ) -> DispatchResult {
+//             ensure_signed(origin)?;
 
-			Ok(())
-		}
+//             if hash {
+//                 let hash = blake2_256(&data);
+//                 Data::<T>::put(hash.as_ref().to_vec());
+//             } else {
+//                 Data::<T>::put(data);
+//             }
 
-		/////////////////////// Part 3.B - conditional benchmark ///////////////////////
-		//TODO write two benchmarks for this extrinsic in benchmarking.rs, and then choose the
-		//corresponding one depending on the value of `hash`
-		//hint: look at this pallet's weights macros: https://github.com/paritytech/substrate/blob/master/frame/utility/src/lib.rs
-		#[pallet::weight(0)]
-		pub fn benchmarked_store_maybe_hashed(
-			origin: OriginFor<T>,
-			data: Vec<u8>,
-			hash: bool,
-		) -> DispatchResult {
-			ensure_signed(origin)?;
+//             Ok(())
+//         }
 
-			if hash {
-				let hash = blake2_256(&data);
-				Data::<T>::put(hash.as_ref().to_vec());
-			} else {
-				Data::<T>::put(data);
-			}
+//         /////////////////////// Part 3.B - conditional benchmark ///////////////////////
+//         //TODO write two benchmarks for this extrinsic in benchmarking.rs, and then choose the
+//         //corresponding one depending on the value of `hash`
+//         //hint: look at this pallet's weights macros: https://github.com/paritytech/substrate/blob/master/frame/utility/src/lib.rs
+//         #[pallet::weight(
+//             if *hash {
+//                 T::WeightInfo::store_maybe_hashed_true() + 1
+//             } else {
+//                 T::WeightInfo::store_maybe_hashed_false()
+//             }
+//         )]
+//         pub fn benchmarked_store_maybe_hashed(
+//             origin: OriginFor<T>,
+//             data: Vec<u8>,
+//             hash: bool,
+//         ) -> DispatchResult {
+//             ensure_signed(origin)?;
 
-			Ok(())
-		}
-	}
-}
+//             if hash {
+//                 let hash = blake2_256(&data);
+//                 Data::<T>::put(hash.as_ref().to_vec());
+//             } else {
+//                 Data::<T>::put(data);
+//             }
+
+//             Ok(())
+//         }
+//     }
+// }
